@@ -1,0 +1,63 @@
+{
+  "name": "jira-modern",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k \"node --use-system-ca server.js\" \"vite\"",
+    "build": "vite build",
+    "start": "node --use-system-ca server.js",
+    "desktop": "vite build && electron .",
+    "dist": "vite build && electron-builder --win nsis",
+    "dist:dir": "vite build && electron-builder --win dir"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "4.3.4",
+    "concurrently": "9.1.0",
+    "electron": "^44.7.2",
+    "electron-builder": "^26.15.3",
+    "vite": "5.4.11",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "main": "desktop/main.cjs",
+  "description": "Team-IT CDS : interface Jira moderne avec assistant IA",
+  "author": "Team-IT",
+  "build": {
+    "appId": "fr.teamit.cds",
+    "productName": "Team-IT CDS",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "asar": false,
+    "files": [
+      "desktop/**",
+      "dist/**",
+      "build/icon.png",
+      "build/tray.png",
+      "server.js",
+      "jira-mcp.js",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Team-IT CDS"
+    }
+  }
+}

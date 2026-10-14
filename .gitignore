@@ -1,0 +1,12 @@
+# dépendances et builds
+node_modules/
+dist/
+release/
+*.tmp
+
+# fichiers locaux
+.env
+.env.*
+*.log
+.DS_Store
+Thumbs.db
