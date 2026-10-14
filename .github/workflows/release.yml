@@ -1,0 +1,45 @@
+name: Release Windows
+
+# Se déclenche quand on pousse un tag de version (ex. v1.0.0), ou à la main depuis l'onglet Actions.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Construire l'interface
+        run: npx vite build
+
+      - name: Construire l'installateur Windows
+        run: npx electron-builder --win nsis --publish never
+
+      - name: Publier la release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Team-IT CDS ${{ github.ref_name }}
+          generate_release_notes: true
+          files: release/Team-IT-CDS-Setup-*.exe
+
+      - name: Conserver l'installateur (lancement manuel)
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: installateur-windows
+          path: release/Team-IT-CDS-Setup-*.exe

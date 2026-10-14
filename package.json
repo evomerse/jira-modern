@@ -57,7 +57,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Team-IT CDS"
+      "shortcutName": "Team-IT CDS",
+      "artifactName": "Team-IT-CDS-Setup-${version}.${ext}"
     }
   }
 }
