@@ -290,7 +290,7 @@ export async function postInternalDocNote(s, key, title, url) {
 
 // ---- Autres fournisseurs d'IA (ChatGPT / Gemini) via le proxy local ----
 export const aiFetch = (s, provider, path, body) => {
-  const key = provider === 'openai' ? s.openaiKey : s.geminiKey;
+  const key = { openai: s.openaiKey, gemini: s.geminiKey, groq: s.groqKey }[provider];
   return fetch(`/api/${provider}${path}`, {
     method: body ? 'POST' : 'GET',
     headers: { 'content-type': 'application/json', [`x-${provider}-key`]: key },
@@ -312,6 +312,10 @@ export async function listModels(s, provider) {
   if (provider === 'openai') {
     const d = await aiFetch(s, 'openai', '/v1/models');
     return (d.data || []).map((m) => m.id).filter((id) => /^(gpt|o\d|chatgpt)/i.test(id)).sort();
+  }
+  if (provider === 'groq') {
+    const d = await aiFetch(s, 'groq', '/openai/v1/models');
+    return (d.data || []).map((m) => m.id).filter((id) => !/whisper|guard|tts|playai|distil-whisper/i.test(id)).sort();
   }
   const d = await aiFetch(s, 'gemini', '/v1beta/models?pageSize=100');
   return (d.models || [])

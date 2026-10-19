@@ -145,12 +145,12 @@ async function askClaude(s, history, system, confirm, onStep) {
 }
 
 /* ----- ChatGPT (API OpenAI, chat completions) ----- */
-async function askOpenAI(s, history, system, confirm, onStep) {
+async function askOpenAI(s, history, system, confirm, onStep, cfg = { provider: 'openai', model: s.openaiModel, path: '/v1/chat/completions', maxOut: 0 }) {
   const messages = [...history];
   const tools = TOOLS.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.input_schema } }));
   for (let turn = 0; turn < MAX_TURNS; turn++) {
-    const r = await aiFetch(s, 'openai', '/v1/chat/completions', {
-      model: s.openaiModel,
+    const r = await aiFetch(s, cfg.provider, cfg.path, {
+      model: cfg.model,
       messages: [{ role: 'system', content: system }, ...messages],
       tools,
     });
@@ -161,7 +161,9 @@ async function askOpenAI(s, history, system, confirm, onStep) {
     for (const c of m.tool_calls) {
       let args = {};
       try { args = JSON.parse(c.function.arguments || '{}'); } catch { /* arguments invalides */ }
-      messages.push({ role: 'tool', tool_call_id: c.id, content: await exec(s, c.function.name, args, confirm, onStep) });
+      const out = await exec(s, c.function.name, args, confirm, onStep);
+      // Offres gratuites : limites de jetons par minute serrées, on raccourcit les gros résultats.
+      messages.push({ role: 'tool', tool_call_id: c.id, content: cfg.maxOut ? out.slice(0, cfg.maxOut) : out });
     }
   }
   return { messages, text: "Trop d'étapes sans conclusion." };
@@ -197,6 +199,7 @@ async function askGemini(s, history, system, confirm, onStep) {
 export async function ask(s, history, context, confirm, onStep, system = SYSTEM) {
   const sys = system.replace('{{CONTEXT}}', context);
   if (s.aiMode === 'openai') return askOpenAI(s, history, sys, confirm, onStep);
+  if (s.aiMode === 'groq') return askOpenAI(s, history, sys, confirm, onStep, { provider: 'groq', model: s.groqModel, path: '/openai/v1/chat/completions', maxOut: 5000 });
   if (s.aiMode === 'gemini') return askGemini(s, history, sys, confirm, onStep);
   return askClaude(s, history, sys, confirm, onStep);
 }

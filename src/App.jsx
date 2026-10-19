@@ -1087,6 +1087,21 @@ function Settings({ s, onSave }) {
         )}
         {d.aiMode === 'openai' && <ProviderKeyForm s={d} provider="openai" upd={upd} placeholder="sk-…" help="platform.openai.com → API keys" />}
         {d.aiMode === 'gemini' && <ProviderKeyForm s={d} provider="gemini" upd={upd} placeholder="AIza…" help="aistudio.google.com → Get API key" />}
+        {d.aiMode === 'groq' && (
+          <>
+            <details className="howto" open>
+              <summary>Tutoriel : créer sa clé Groq gratuite (2 minutes)</summary>
+              <ol>
+                <li>Ouvre <a className="ext" href="https://console.groq.com" target="_blank" rel="noreferrer">console.groq.com ↗</a> et crée un compte (connexion avec Google, GitHub ou email). <b>Aucune carte bancaire</b> n'est demandée pour l'offre gratuite.</li>
+                <li>Dans le menu, clique sur <b>API Keys</b> puis <b>Create API Key</b>. Donne-lui un nom (ex. « Team-IT CDS »).</li>
+                <li>Copie la clé affichée, qui commence par <code>gsk_</code>. <b>Elle ne sera plus visible ensuite.</b></li>
+                <li>Colle-la ci-dessous, clique sur <b>Tester la clé / charger les modèles</b>, choisis un modèle, puis <b>Enregistrer</b>.</li>
+              </ol>
+              <p className="muted small">Offre gratuite : des limites de requêtes et de jetons par minute et par jour s'appliquent. Si tu reçois une erreur « rate limit », attends une minute ou choisis un modèle plus léger. Les contenus des tickets que tu soumets à l'assistant sont envoyés à Groq : à éviter pour des données sensibles.</p>
+            </details>
+            <ProviderKeyForm s={d} provider="groq" upd={upd} placeholder="gsk_…" help="console.groq.com → API Keys" />
+          </>
+        )}
         {d.aiMode !== 'code' && (
           <p className="muted small">La clé reste dans le stockage local de ce navigateur et n'est envoyée qu'au proxy local, qui la transmet au fournisseur. Les écritures dans Jira (commentaire, statut) demandent une confirmation.</p>
         )}
@@ -1255,8 +1270,8 @@ function PowerShellFix({ compact }) {
 }
 
 function ProviderKeyForm({ s, provider, upd, placeholder, help }) {
-  const keyField = provider === 'openai' ? 'openaiKey' : 'geminiKey';
-  const modelField = provider === 'openai' ? 'openaiModel' : 'geminiModel';
+  const keyField = `${provider}Key`;
+  const modelField = `${provider}Model`;
   const [models, setModels] = useState([]);
   const [msg, setMsg] = useState('');
   const load = async () => {
@@ -1269,7 +1284,7 @@ function ProviderKeyForm({ s, provider, upd, placeholder, help }) {
   };
   return (
     <>
-      <label>Clé API {provider === 'openai' ? 'OpenAI' : 'Google (Gemini)'}
+      <label>Clé API {{ openai: 'OpenAI', gemini: 'Google (Gemini)', groq: 'Groq' }[provider]}
         <input type="password" value={s[keyField]} onChange={(e) => upd({ [keyField]: e.target.value })} autoComplete="off" placeholder={placeholder} />
         <span className="muted small">Créer une clé : {help}</span>
       </label>

@@ -91,6 +91,8 @@ export const DEFAULTS = {
   openaiModel: 'gpt-4o',
   geminiKey: '',
   geminiModel: 'gemini-2.0-flash',
+  groqKey: '',
+  groqModel: 'llama-3.3-70b-versatile',
   filterId: '10100',
   baseJql: 'filter = 10100 ORDER BY updated DESC',
   plannedFieldId: 'customfield_10546',
@@ -110,6 +112,7 @@ export const PROVIDERS = {
   api: { label: 'Claude (clé API Anthropic)', short: 'Claude API', key: 'claudeKey' },
   openai: { label: 'ChatGPT (clé API OpenAI)', short: 'ChatGPT', key: 'openaiKey' },
   gemini: { label: 'Gemini (clé API Google)', short: 'Gemini', key: 'geminiKey' },
+  groq: { label: 'Groq (clé API gratuite)', short: 'Groq', key: 'groqKey' },
 };
 
 // Le fournisseur choisi est-il utilisable ? (Claude Code n'a pas besoin de clé)

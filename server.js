@@ -62,6 +62,13 @@ const AI_PROVIDERS = {
     allowed: /^\/v1\/(chat\/completions|models)(\?.*)?$/,
     auth: (k) => ({ authorization: `Bearer ${k}` }),
   },
+  // Groq : API compatible OpenAI (offre gratuite).
+  groq: {
+    base: 'https://api.groq.com',
+    header: 'x-groq-key',
+    allowed: /^\/openai\/v1\/(chat\/completions|models)(\?.*)?$/,
+    auth: (k) => ({ authorization: `Bearer ${k}` }),
+  },
   gemini: {
     base: 'https://generativelanguage.googleapis.com',
     header: 'x-gemini-key',
@@ -73,7 +80,7 @@ const AI_PROVIDERS = {
 async function aiProxy(req, res, provider, rest) {
   const cfg = AI_PROVIDERS[provider];
   const key = req.headers[cfg.header];
-  if (!key) return send(res, 400, { error: `Clé API ${provider === 'openai' ? 'OpenAI' : 'Gemini'} manquante (Paramètres)` });
+  if (!key) return send(res, 400, { error: `Clé API ${{ openai: 'OpenAI', gemini: 'Gemini', groq: 'Groq' }[provider]} manquante (Paramètres)` });
   if (!cfg.allowed.test(rest)) return send(res, 403, { error: 'Chemin non autorisé' });
   const body = ['GET', 'HEAD'].includes(req.method) ? undefined : await readBody(req);
   const r = await fetch(cfg.base + rest, {
@@ -202,6 +209,7 @@ async function networkDiagnose(req, res) {
     ['Claude (Anthropic)', 'https://api.anthropic.com/'],
     ['ChatGPT (OpenAI)', 'https://api.openai.com/v1/models'],
     ['Gemini (Google)', 'https://generativelanguage.googleapis.com/'],
+    ['Groq', 'https://api.groq.com/openai/v1/models'],
   ];
   const results = await Promise.all(targets.map(async ([name, url]) => {
     const t0 = Date.now();
@@ -251,7 +259,7 @@ http.createServer(async (req, res) => {
       if (!local(host)) return send(res, 403, { error: 'Hôte non autorisé' });
       if (origin && !local(new URL(origin).host)) return send(res, 403, { error: 'Origine non autorisée' });
     }
-    const ai = url.match(/^\/api\/(openai|gemini)(\/.*)$/);
+    const ai = url.match(/^\/api\/(openai|gemini|groq)(\/.*)$/);
     if (ai) return await aiProxy(req, res, ai[1], ai[2]);
     if (url === '/api/system/diagnose') return await networkDiagnose(req, res);
     if (url === '/api/system/powershell-policy' && ['GET', 'POST'].includes(req.method)) return await powershellPolicy(req, res);
