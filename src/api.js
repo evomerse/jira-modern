@@ -301,7 +301,12 @@ export const aiFetch = (s, provider, path, body) => {
     try { d = text ? JSON.parse(text) : {}; } catch { d = { error: text }; }
     if (!r.ok) {
       const m = d.error?.message || d.error || `HTTP ${r.status}`;
-      throw new Error(typeof m === 'string' ? m : JSON.stringify(m));
+      const text = typeof m === 'string' ? m : JSON.stringify(m);
+      // Modèle retiré ou inaccessible : on dit où le changer.
+      const hint = /model/i.test(text) && /(does not exist|not found|no access|not have access|decommission|deprecat)/i.test(text)
+        ? ' → Paramètres > Assistant IA : clique sur « Tester la clé / charger les modèles » pour choisir un modèle disponible, puis Enregistrer.'
+        : '';
+      throw new Error(text + hint);
     }
     return d;
   });

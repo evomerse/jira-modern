@@ -1269,6 +1269,20 @@ function PowerShellFix({ compact }) {
   );
 }
 
+// Modèle préféré par fournisseur, dans l'ordre : le premier présent dans la liste réellement disponible est choisi.
+const MODEL_PREFS = {
+  groq: [/llama-3\.3-70b/, /llama.*70b/, /gpt-oss-120b/, /gpt-oss/, /llama.*(versatile|instant)/, /qwen/, /llama/],
+  openai: [/^gpt-4o$/, /^gpt-4\.1$/, /^gpt-4o-mini$/, /^gpt-5/, /^gpt-4/],
+  gemini: [/gemini-2\.5-flash$/, /gemini-2\.0-flash$/, /flash/, /gemini/],
+};
+const pickModel = (provider, list) => {
+  for (const re of MODEL_PREFS[provider] || []) {
+    const hit = list.find((m) => re.test(m));
+    if (hit) return hit;
+  }
+  return list[0] || '';
+};
+
 function ProviderKeyForm({ s, provider, upd, placeholder, help }) {
   const keyField = `${provider}Key`;
   const modelField = `${provider}Model`;
@@ -1279,9 +1293,15 @@ function ProviderKeyForm({ s, provider, upd, placeholder, help }) {
     try {
       const list = await listModels(s, provider);
       setModels(list);
-      setMsg(list.length ? `✓ Clé valide · ${list.length} modèle(s) disponible(s)` : 'Aucun modèle compatible trouvé.');
+      if (!list.length) return setMsg('Aucun modèle compatible trouvé.');
+      if (list.includes(s[modelField])) return setMsg(`✓ Clé valide · ${list.length} modèle(s) disponible(s)`);
+      // Le modèle enregistré n'existe pas (ou plus) pour ce compte : on en choisit un qui existe.
+      const next = pickModel(provider, list);
+      upd({ [modelField]: next });
+      setMsg(`✓ Clé valide · « ${s[modelField]} » n'est pas disponible, remplacé par « ${next} ». Clique sur Enregistrer.`);
     } catch (e) { setMsg('✗ ' + e.message); }
   };
+  const current = s[modelField];
   return (
     <>
       <label>Clé API {{ openai: 'OpenAI', gemini: 'Google (Gemini)', groq: 'Groq' }[provider]}
@@ -1289,8 +1309,15 @@ function ProviderKeyForm({ s, provider, upd, placeholder, help }) {
         <span className="muted small">Créer une clé : {help}</span>
       </label>
       <label>Modèle
-        <input list={`models-${provider}`} value={s[modelField]} onChange={(e) => upd({ [modelField]: e.target.value })} />
-        <datalist id={`models-${provider}`}>{models.map((m) => <option key={m} value={m} />)}</datalist>
+        {models.length > 0 ? (
+          <select value={current} onChange={(e) => upd({ [modelField]: e.target.value })}>
+            {!models.includes(current) && <option value={current}>{current} (indisponible)</option>}
+            {models.map((m) => <option key={m} value={m}>{m}</option>)}
+          </select>
+        ) : (
+          <input value={current} onChange={(e) => upd({ [modelField]: e.target.value })} />
+        )}
+        {models.length === 0 && <span className="muted small">Clique sur « Tester la clé » pour choisir parmi les modèles réellement disponibles.</span>}
       </label>
       <div className="row gap wrap">
         <button onClick={load} disabled={!s[keyField]}>Tester la clé / charger les modèles</button>
