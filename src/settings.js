@@ -19,7 +19,65 @@ export const DEFAULT_KPIS = [
   { group: 'sla', label: 'GTR · en pause ou bientôt expirée', tone: 'orange', jql: `${F} AND (project in (ITS) AND "Time to resolution" > remaining("15m") AND assignee in (membersOf(CDS_Reporting)) OR assignee in (712020:1f2a8c6f-5760-429b-aa7c-ce5e989bdc69) AND status not in (Closed, Done, Resolved, Résolu))` },
 ];
 
+// Réponses standardisées au client. Variables : {{prenom}} (demandeur), {{ticket}} (clé), {{agent}} (toi).
+const SIGN = `Cordialement,
+{{agent}}
+Support CDS Team-IT`;
+
+export const DEFAULT_REPLIES = [
+  {
+    id: 'ack',
+    title: 'Accusé de réception',
+    text: `Bonjour {{prenom}},
+
+Nous avons bien reçu votre demande ({{ticket}}) et nous l'avons prise en charge. Nous revenons vers vous dès que possible.
+
+${SIGN}`,
+  },
+  {
+    id: 'info',
+    title: "Demande d'informations complémentaires",
+    text: `Bonjour {{prenom}},
+
+Afin de traiter votre demande ({{ticket}}), pourriez-vous nous préciser :
+-
+-
+
+Dès réception de ces éléments, nous poursuivrons le traitement.
+
+${SIGN}`,
+  },
+  {
+    id: 'resolved',
+    title: 'Ticket résolu',
+    text: `Bonjour {{prenom}},
+
+Votre demande ({{ticket}}) a été traitée et nous la considérons comme résolue. Si le problème persiste ou si vous avez une question, répondez simplement à ce message et nous rouvrirons le ticket.
+
+${SIGN}`,
+  },
+  {
+    id: 'reminder',
+    title: 'Relance (sans réponse)',
+    text: `Bonjour {{prenom}},
+
+Nous n'avons pas eu de retour de votre part concernant votre demande ({{ticket}}). Pouvez-vous nous confirmer si le problème est toujours d'actualité ? Sans retour de votre part, le ticket sera clôturé prochainement.
+
+${SIGN}`,
+  },
+  {
+    id: 'escalated',
+    title: "Transmis à l'équipe compétente",
+    text: `Bonjour {{prenom}},
+
+Votre demande ({{ticket}}) nécessite l'intervention d'une équipe spécialisée. Nous l'avons transmise et nous vous tiendrons informé(e) de l'avancement.
+
+${SIGN}`,
+  },
+];
+
 export const DEFAULTS = {
+  replies: DEFAULT_REPLIES,
   schema: SCHEMA,
   jiraUrl: 'https://moongy.atlassian.net',
   jiraEmail: '',

@@ -172,6 +172,26 @@ async function claudeCodeChat(req, res) {
   }
 }
 
+/* ---------- Dépannage : autorisation d'exécution des scripts PowerShell (Windows) ---------- */
+const ps = (cmd) => run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', cmd], null, 20000);
+
+async function powershellPolicy(req, res) {
+  if (process.platform !== 'win32') return send(res, 400, { error: 'Disponible uniquement sous Windows.' });
+  let setError = '';
+  if (req.method === 'POST') {
+    // Portée « utilisateur courant » : aucun droit administrateur requis, réversible.
+    const r = await ps('Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force');
+    setError = (r.err || '').trim();
+  }
+  const r = await ps('Get-ExecutionPolicy -List | ForEach-Object { $_.Scope.ToString() + "=" + $_.ExecutionPolicy.ToString() }');
+  const list = {};
+  r.out.split('\n').map((l) => l.trim()).filter(Boolean).forEach((l) => { const [k, v] = l.split('='); list[k] = v; });
+  const order = ['MachinePolicy', 'UserPolicy', 'Process', 'CurrentUser', 'LocalMachine'];
+  const effective = order.map((k) => list[k]).find((v) => v && v !== 'Undefined') || 'Restricted';
+  const locked = ['MachinePolicy', 'UserPolicy'].some((k) => list[k] && list[k] !== 'Undefined');
+  send(res, 200, { effective, list, locked, ok: !['Restricted', 'AllSigned'].includes(effective), error: setError });
+}
+
 http.createServer(async (req, res) => {
   try {
     const url = req.url || '/';
@@ -185,6 +205,7 @@ http.createServer(async (req, res) => {
     }
     const ai = url.match(/^\/api\/(openai|gemini)(\/.*)$/);
     if (ai) return await aiProxy(req, res, ai[1], ai[2]);
+    if (url === '/api/system/powershell-policy' && ['GET', 'POST'].includes(req.method)) return await powershellPolicy(req, res);
     if (url === '/api/claude-code/status') return await claudeCodeStatus(res);
     if (url === '/api/claude-code/chat' && req.method === 'POST') return await claudeCodeChat(req, res);
     if (url.startsWith('/api/jira/')) return await jira(req, res, url.slice('/api/jira'.length));

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { loadSettings, saveSettings, DEFAULTS, PROVIDERS, aiConfigured } from './settings.js';
+import { loadSettings, saveSettings, DEFAULTS, DEFAULT_REPLIES, PROVIDERS, aiConfigured } from './settings.js';
 import { jira, jiraBlobRaw, searchIssues, countIssues, getComments, postComment, listModels, findDocs, getDocPage, postInternalDocNote, adfToText, getIssueFull, updateFields, assignIssue, getTransitionsFull, doTransitionWith, getMyself } from './api.js';
 import { FieldInput, kindOf, toDraft, toApi, valueText } from './FieldEditor.jsx';
 import { ask, generateJql, claudeOnce, docSystemPrompt, replySystemPrompt } from './agent.js';
@@ -543,6 +543,17 @@ ${(description || '').slice(0, 400)}`;
   );
 }
 
+// Remplace {{prenom}}, {{ticket}}, {{agent}} dans un modèle de réponse.
+function fillReply(tpl, { reporter, ticket, agent }) {
+  const raw = String(reporter || '').trim();
+  const first = raw && !raw.includes('@') && !/no-?reply|donotreply/i.test(raw) ? raw.split(/\s+/)[0] : '';
+  return String(tpl)
+    .replace(/\{\{prenom\}\}/g, first)
+    .replace(/\{\{ticket\}\}/g, ticket || '')
+    .replace(/\{\{agent\}\}/g, agent || '')
+    .replace(/Bonjour ,/g, 'Bonjour,');
+}
+
 /* ---------- Ticket en grand ---------- */
 
 // Champ éditable en place : affichage + crayon, puis formulaire adapté au type du champ Jira.
@@ -764,6 +775,24 @@ function IssueView({ s, issueKey, onClose, onChanged, onPerson }) {
                     <span className="grow" />
                     <button type="button" className="ghost" onClick={draft} disabled={drafting}>{drafting ? '✦ Rédaction…' : '✦ Proposer une réponse'}</button>
                   </div>
+                  {mode === 'public' && (s.replies || []).length > 0 && (
+                    <div className="stdreply">
+                      <label className="small muted" htmlFor="stdreply">Réponse standardisée</label>
+                      <select
+                        id="stdreply" value="" title="Insère un modèle de réponse, modifiable avant l'envoi"
+                        onChange={(e) => {
+                          const tpl = s.replies.find((r) => r.id === e.target.value);
+                          if (!tpl) return;
+                          const filled = fillReply(tpl.text, { reporter: f.reporter?.displayName, ticket: issueKey, agent: me?.displayName });
+                          setText((cur) => (cur.trim() ? `${cur.trimEnd()}\n\n${filled}` : filled));
+                          setConfirmSend(false);
+                        }}
+                      >
+                        <option value="">— Choisir un modèle à insérer —</option>
+                        {s.replies.map((r) => <option key={r.id} value={r.id}>{r.title}</option>)}
+                      </select>
+                    </div>
+                  )}
                   <textarea
                     rows={5} value={text} onChange={(e) => { setText(e.target.value); setConfirmSend(false); }}
                     placeholder={mode === 'public' ? 'Votre réponse sera visible par le demandeur…' : "Note visible uniquement par l'équipe support…"}
@@ -1015,6 +1044,12 @@ function Settings({ s, onSave }) {
         <label>Token API Jira<input type="password" value={d.jiraToken} onChange={set('jiraToken')} autoComplete="off" />
           <span className="muted small">Créer un token : id.atlassian.com → Sécurité → Jetons API</span></label>
         <div className="row gap"><button onClick={testJira}>Tester la connexion</button><span className="small">{test}</span></div>
+        {/fetch/i.test(test) && (
+          <div className="stack hint">
+            <p className="small warn-t">Le serveur local ne répond pas. Si les scripts PowerShell sont bloqués par Windows, autorise-les puis relance l'application :</p>
+            <PowerShellFix compact />
+          </div>
+        )}
       </section>
 
       <section className="card stack">
@@ -1080,6 +1115,24 @@ function Settings({ s, onSave }) {
       </section>
 
       <section className="card stack">
+        <h2>Réponses standardisées</h2>
+        <p className="muted small">Modèles proposés dans « Répondre au client ». Variables : <code>{'{{prenom}}'}</code> (demandeur), <code>{'{{ticket}}'}</code> (clé du ticket), <code>{'{{agent}}'}</code> (toi). Le texte reste modifiable avant l'envoi.</p>
+        {(d.replies || []).map((r, i) => (
+          <div key={r.id} className="reply-edit">
+            <div className="row gap">
+              <input className="grow" value={r.title} placeholder="Titre du modèle" onChange={(e) => upd({ replies: d.replies.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)) })} />
+              <button onClick={() => upd({ replies: d.replies.filter((_, j) => j !== i) })} title="Supprimer ce modèle">✕</button>
+            </div>
+            <textarea className="commentbox" rows={6} value={r.text} onChange={(e) => upd({ replies: d.replies.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)) })} />
+          </div>
+        ))}
+        <div className="row gap wrap">
+          <button onClick={() => upd({ replies: [...(d.replies || []), { id: `r${Date.now()}`, title: 'Nouveau modèle', text: `Bonjour {{prenom}},\n\n\n\nCordialement,\n{{agent}}` }] })}>+ Ajouter un modèle</button>
+          <button onClick={() => upd({ replies: DEFAULT_REPLIES })}>Réinitialiser les modèles</button>
+        </div>
+      </section>
+
+      <section className="card stack">
         <h2>Notifications</h2>
         <label className="row gap check">
           <input type="checkbox" checked={d.notif.enabled} onChange={(e) => upd({ notif: { ...d.notif, enabled: e.target.checked } })} />
@@ -1118,11 +1171,50 @@ function Settings({ s, onSave }) {
         </label>
       </section>
 
+      <section className="card stack">
+        <h2>Dépannage Windows</h2>
+        <PowerShellFix />
+      </section>
+
       <InstallCard />
 
       <div className="row gap">
         <button className="primary" onClick={() => { onSave(d); setSaved(true); }}>Enregistrer</button>
         {saved && <span className="small">✓ Enregistré</span>}
+      </div>
+    </div>
+  );
+}
+
+// Bouton « Autoriser les scripts PowerShell » : lance Set-ExecutionPolicy pour l'utilisateur courant.
+function PowerShellFix({ compact }) {
+  const [st, setSt] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const call = useCallback(async (apply) => {
+    setBusy(true);
+    try {
+      if (window.desktop?.powershellPolicy) setSt(await window.desktop.powershellPolicy(apply));
+      else setSt(await (await fetch('/api/system/powershell-policy', { method: apply ? 'POST' : 'GET' })).json());
+    } catch (e) { setSt({ unreachable: true, error: e.message }); } finally { setBusy(false); }
+  }, []);
+  useEffect(() => { if (!compact) call(false); }, [call, compact]);
+
+  let status = null;
+  if (st?.unreachable) status = <div className="status bad"><span>● Serveur local injoignable ({st.error}). Quitte l'application (icône près de l'horloge → Quitter) puis rouvre-la.</span></div>;
+  else if (st?.error && !st.effective) status = <div className="status bad"><span>● {st.error}</span></div>;
+  else if (st?.effective) {
+    if (st.ok) status = <div className="status ok"><span>● Scripts PowerShell autorisés (politique : {st.effective}).</span></div>;
+    else if (st.locked) status = <div className="status warn"><span>● Politique « {st.effective} » imposée par l'entreprise : elle ne peut pas être modifiée ici. Contacte le support informatique.</span></div>;
+    else status = <div className="status warn"><span>● Scripts bloqués (politique : {st.effective}).</span></div>;
+    if (st.error && !st.ok) status = <>{status}<div className="banner err small">{st.error}</div></>;
+  }
+  return (
+    <div className="stack">
+      {!compact && <p className="muted small">Si des scripts de l'application (installation, lancement) sont bloqués par Windows, ce bouton exécute : <code>Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force</code>. Aucun droit administrateur requis, effet limité à ton compte.</p>}
+      {status}
+      <div className="row gap wrap">
+        <button className="primary" onClick={() => call(true)} disabled={busy}>{busy ? '…' : '🛡 Autoriser les scripts PowerShell'}</button>
+        {!compact && <button onClick={() => call(false)} disabled={busy}>Revérifier</button>}
       </div>
     </div>
   );

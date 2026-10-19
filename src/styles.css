@@ -259,3 +259,9 @@ a.person:hover { color: var(--brand); text-decoration: underline; }
 .viewer-video { max-width: 100%; max-height: 100%; }
 .viewer-text { margin: 0; padding: 16px; align-self: flex-start; width: 100%; white-space: pre-wrap; word-break: break-word; font: 12.5px/1.55 ui-monospace, Consolas, monospace; }
 .viewer-msg { text-align: center; padding: 40px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+
+/* ---- Réponses standardisées ---- */
+.stdreply { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.stdreply select { flex: 1; min-width: 220px; }
+.reply-edit { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; }
+.hint { padding: 10px 12px; border: 1px dashed var(--orange); border-radius: 10px; }

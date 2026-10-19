@@ -5,4 +5,5 @@ contextBridge.exposeInMainWorld('desktop', {
   isDesktop: true,
   show: () => ipcRenderer.send('desktop:show'),
   autostart: (on) => ipcRenderer.invoke('desktop:autostart', on),
+  powershellPolicy: (apply) => ipcRenderer.invoke('desktop:ps-policy', !!apply),
 });

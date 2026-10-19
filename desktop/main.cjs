@@ -122,6 +122,21 @@ app.whenReady().then(async () => {
   session.defaultSession.setPermissionCheckHandler((_wc, permission) => allow(permission));
 
   ipcMain.on('desktop:show', showWindow);
+  // Autorisation des scripts PowerShell : passe par l'application elle-même, donc fonctionne même si le serveur local est arrêté.
+  ipcMain.handle('desktop:ps-policy', async (_e, apply) => {
+    const { execFile } = require('node:child_process');
+    const ps = (cmd) => new Promise((resolve) => {
+      execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', cmd], { timeout: 20000, windowsHide: true }, (_err, stdout, stderr) => resolve({ out: String(stdout || ''), err: String(stderr || '') }));
+    });
+    let error = '';
+    if (apply) error = (await ps('Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force')).err.trim();
+    const r = await ps('Get-ExecutionPolicy -List | ForEach-Object { $_.Scope.ToString() + "=" + $_.ExecutionPolicy.ToString() }');
+    const list = {};
+    r.out.split('\n').map((l) => l.trim()).filter(Boolean).forEach((l) => { const [k, v] = l.split('='); list[k] = v; });
+    const effective = ['MachinePolicy', 'UserPolicy', 'Process', 'CurrentUser', 'LocalMachine'].map((k) => list[k]).find((v) => v && v !== 'Undefined') || 'Restricted';
+    const locked = ['MachinePolicy', 'UserPolicy'].some((k) => list[k] && list[k] !== 'Undefined');
+    return { effective, list, locked, ok: !['Restricted', 'AllSigned'].includes(effective), error };
+  });
   ipcMain.handle('desktop:autostart', (_e, on) => {
     if (typeof on === 'boolean') app.setLoginItemSettings({ openAtLogin: on, args: ['--hidden'] });
     return app.getLoginItemSettings().openAtLogin;
