@@ -172,6 +172,48 @@ async function claudeCodeChat(req, res) {
   }
 }
 
+/* ---------- Dépannage réseau ---------- */
+// « fetch failed » seul ne dit rien : on ajoute la cause (ENOTFOUND, certificat, proxy…).
+const HINTS = {
+  ENOTFOUND: 'nom de domaine introuvable : probablement un proxy d\'entreprise non pris en compte',
+  ECONNREFUSED: 'connexion refusée',
+  ETIMEDOUT: 'délai dépassé : accès Internet bloqué ou proxy requis',
+  UND_ERR_CONNECT_TIMEOUT: 'délai dépassé : accès Internet bloqué ou proxy requis',
+  SELF_SIGNED_CERT_IN_CHAIN: 'certificat d\'entreprise non reconnu',
+  UNABLE_TO_VERIFY_LEAF_SIGNATURE: 'certificat non reconnu',
+};
+function describe(e) {
+  const c = e?.cause;
+  if (!c) return String(e?.message || e);
+  const code = c.code || c.name || '';
+  return `${e.message} — ${code} ${HINTS[code] ? `(${HINTS[code]})` : c.message || ''}`.trim();
+}
+
+async function networkDiagnose(req, res) {
+  const base = String(req.headers['x-jira-url'] || '').replace(/\/+$/, '');
+  const targets = [
+    ...(/^https:\/\/[a-z0-9-]+\.atlassian\.net$/i.test(base) ? [['Jira / Confluence', `${base}/status`]] : []),
+    ['Claude (Anthropic)', 'https://api.anthropic.com/'],
+    ['ChatGPT (OpenAI)', 'https://api.openai.com/v1/models'],
+    ['Gemini (Google)', 'https://generativelanguage.googleapis.com/'],
+  ];
+  const results = await Promise.all(targets.map(async ([name, url]) => {
+    const t0 = Date.now();
+    try {
+      // Toute réponse HTTP (même 401 / 404) prouve que le serveur est joignable.
+      const r = await fetch(url, { signal: AbortSignal.timeout(9000) });
+      return { name, ok: true, status: r.status, ms: Date.now() - t0 };
+    } catch (e) {
+      return { name, ok: false, error: describe(e), ms: Date.now() - t0 };
+    }
+  }));
+  send(res, 200, {
+    results,
+    engine: process.versions.electron ? 'application de bureau (réseau Windows : proxy et certificats du système)' : 'serveur Node (sans prise en charge du proxy Windows)',
+    proxy: process.env.HTTPS_PROXY || process.env.https_proxy || null,
+  });
+}
+
 /* ---------- Dépannage : autorisation d'exécution des scripts PowerShell (Windows) ---------- */
 const ps = (cmd) => run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', cmd], null, 20000);
 
@@ -205,6 +247,7 @@ http.createServer(async (req, res) => {
     }
     const ai = url.match(/^\/api\/(openai|gemini)(\/.*)$/);
     if (ai) return await aiProxy(req, res, ai[1], ai[2]);
+    if (url === '/api/system/diagnose') return await networkDiagnose(req, res);
     if (url === '/api/system/powershell-policy' && ['GET', 'POST'].includes(req.method)) return await powershellPolicy(req, res);
     if (url === '/api/claude-code/status') return await claudeCodeStatus(res);
     if (url === '/api/claude-code/chat' && req.method === 'POST') return await claudeCodeChat(req, res);
@@ -217,6 +260,6 @@ http.createServer(async (req, res) => {
     res.writeHead(200, { 'content-type': MIME[path.extname(file)] || 'application/octet-stream' });
     fs.createReadStream(file).pipe(res);
   } catch (e) {
-    send(res, 502, { error: String(e.message || e) });
+    send(res, 502, { error: describe(e) });
   }
 }).listen(PORT, '127.0.0.1', () => console.log(`Proxy prêt sur http://127.0.0.1:${PORT}`));

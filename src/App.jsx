@@ -1172,7 +1172,9 @@ function Settings({ s, onSave }) {
       </section>
 
       <section className="card stack">
-        <h2>Dépannage Windows</h2>
+        <h2>Dépannage</h2>
+        <NetDiag s={d} />
+        <hr className="sep" />
         <PowerShellFix />
       </section>
 
@@ -1182,6 +1184,38 @@ function Settings({ s, onSave }) {
         <button className="primary" onClick={() => { onSave(d); setSaved(true); }}>Enregistrer</button>
         {saved && <span className="small">✓ Enregistré</span>}
       </div>
+    </div>
+  );
+}
+
+// Diagnostic réseau : teste l'accès à Jira et aux IA, avec la cause exacte en cas d'échec.
+function NetDiag({ s }) {
+  const [r, setR] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const run = async () => {
+    setBusy(true);
+    try {
+      const res = await fetch('/api/system/diagnose', { headers: { 'x-jira-url': s.jiraUrl } });
+      setR(await res.json());
+    } catch (e) { setR({ unreachable: e.message }); } finally { setBusy(false); }
+  };
+  return (
+    <div className="stack">
+      <div className="row gap wrap">
+        <button onClick={run} disabled={busy}>{busy ? 'Test en cours…' : '🌐 Diagnostic réseau'}</button>
+        <span className="muted small">Teste l'accès à Jira et aux fournisseurs d'IA depuis ce PC.</span>
+      </div>
+      {r?.unreachable && <div className="status bad"><span>● Serveur local injoignable ({r.unreachable}). Quitte l'application (icône près de l'horloge) puis rouvre-la.</span></div>}
+      {r?.results && (
+        <div className="stack">
+          {r.results.map((x) => (
+            <div key={x.name} className={`status ${x.ok ? 'ok' : 'bad'}`}>
+              <span>{x.ok ? '●' : '✗'} <b>{x.name}</b> : {x.ok ? `joignable (HTTP ${x.status}, ${x.ms} ms)` : x.error}</span>
+            </div>
+          ))}
+          <p className="muted small">Mode : {r.engine}{r.proxy ? ` · proxy détecté : ${r.proxy}` : ' · accès direct'}</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -1253,6 +1287,9 @@ function ProviderKeyForm({ s, provider, upd, placeholder, help }) {
 
 /* ---------- Installation locale ---------- */
 function InstallCard() {
+  const desktop = !!window.desktop?.isDesktop;
+  const [auto, setAuto] = useState(null);
+  useEffect(() => { if (desktop) window.desktop.autostart().then(setAuto).catch(() => {}); }, [desktop]);
   const [evt, setEvt] = useState(null);
   const [installed, setInstalled] = useState(() => window.matchMedia?.('(display-mode: standalone)').matches);
   useEffect(() => {
@@ -1262,6 +1299,19 @@ function InstallCard() {
     window.addEventListener('appinstalled', onInstalled);
     return () => { window.removeEventListener('beforeinstallprompt', onPrompt); window.removeEventListener('appinstalled', onInstalled); };
   }, []);
+  if (desktop) {
+    return (
+      <section className="card stack">
+        <h2>Application de bureau</h2>
+        <div className="status ok"><span>● Application installée : rien d'autre à installer. Le serveur est intégré.</span></div>
+        <label className="row gap check">
+          <input type="checkbox" checked={!!auto} disabled={auto === null} onChange={async (e) => setAuto(await window.desktop.autostart(e.target.checked))} />
+          <span>Lancer automatiquement au démarrage de Windows (réduite près de l'horloge, pour ne manquer aucune notification)</span>
+        </label>
+        <p className="muted small">Seul l'assistant IA demande un réglage : Claude Code installé et connecté, ou une clé API ChatGPT / Gemini (voir « Assistant IA »).</p>
+      </section>
+    );
+  }
   return (
     <section className="card stack">
       <h2>Installer l'application sur ce PC</h2>

@@ -265,3 +265,4 @@ a.person:hover { color: var(--brand); text-decoration: underline; }
 .stdreply select { flex: 1; min-width: 220px; }
 .reply-edit { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; }
 .hint { padding: 10px 12px; border: 1px dashed var(--orange); border-radius: 10px; }
+.sep { border: 0; border-top: 1px solid var(--line); margin: 4px 0; width: 100%; }

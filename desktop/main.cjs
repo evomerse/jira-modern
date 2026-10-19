@@ -1,7 +1,8 @@
 // Application de bureau Team-IT CDS : fenêtre native + serveur local intégré + icône de zone de notification.
-const { app, BrowserWindow, Tray, Menu, nativeImage, utilityProcess, shell, session, ipcMain } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, net, shell, session, ipcMain } = require('electron');
 const path = require('node:path');
-const net = require('node:net');
+const nodeNet = require('node:net');
+const { pathToFileURL } = require('node:url');
 
 const ROOT = path.join(__dirname, '..');
 const PORT = 8787;
@@ -16,24 +17,38 @@ if (!app.requestSingleInstanceLock()) {
 
 let win = null;
 let tray = null;
-let server = null;
 let quitting = false;
 let lastUnread = 0;
 
 const portOpen = () => new Promise((resolve) => {
-  const s = net.connect({ port: PORT, host: '127.0.0.1' });
+  const s = nodeNet.connect({ port: PORT, host: '127.0.0.1' });
   s.once('connect', () => { s.destroy(); resolve(true); });
   s.once('error', () => resolve(false));
 });
 
+// Proxy du système (PAC / proxy d'entreprise) pour les programmes lancés par l'application
+// (Claude Code, serveur MCP) : ils n'utilisent pas la pile réseau de Chromium.
+async function applySystemProxyToEnv() {
+  try {
+    const rule = await session.defaultSession.resolveProxy('https://moongy.atlassian.net');
+    const m = String(rule).match(/^(PROXY|HTTPS)\s+([^;\s]+)/i);
+    if (!m) return; // DIRECT : rien à faire
+    const proxy = `${/^HTTPS/i.test(m[1]) ? 'https' : 'http'}://${m[2]}`;
+    process.env.HTTPS_PROXY = proxy;
+    process.env.HTTP_PROXY = proxy;
+    process.env.NO_PROXY = '127.0.0.1,localhost';
+    process.env.NODE_USE_ENV_PROXY = '1';
+  } catch { /* pas de proxy détecté */ }
+}
+
 async function startServer() {
   if (await portOpen()) return; // une instance (ou le mode dev) tourne déjà : on la réutilise
-  // --use-system-ca : fait confiance aux certificats Windows (proxy d'entreprise qui inspecte le HTTPS).
-  server = utilityProcess.fork(path.join(ROOT, 'server.js'), [], {
-    execArgv: ['--use-system-ca'],
-    env: { ...process.env, PORT: String(PORT) },
-    stdio: 'ignore',
-  });
+  await applySystemProxyToEnv();
+  // Le serveur local tourne dans ce processus et sort sur Internet via le réseau d'Electron :
+  // proxy Windows, certificats du système et authentification intégrée fonctionnent comme dans Chrome.
+  globalThis.fetch = (input, init) => net.fetch(input, init);
+  process.env.PORT = String(PORT);
+  await import(pathToFileURL(path.join(ROOT, 'server.js')).href);
   for (let i = 0; i < 40; i++) {
     if (await portOpen()) return;
     await new Promise((r) => setTimeout(r, 250));
@@ -157,5 +172,4 @@ app.whenReady().then(async () => {
 app.on('window-all-closed', () => { /* on reste dans la zone de notification */ });
 app.on('before-quit', () => {
   quitting = true;
-  if (server) server.kill();
 });
