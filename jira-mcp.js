@@ -10,7 +10,7 @@ const auth = 'Basic ' + Buffer.from(`${JIRA_EMAIL}:${JIRA_TOKEN}`).toString('bas
 async function jira(path, init = {}) {
   const r = await fetch(BASE + path, {
     ...init,
-    headers: { authorization: auth, accept: 'application/json', 'content-type': 'application/json' },
+    headers: { authorization: auth, accept: 'application/json', 'content-type': 'application/json', 'x-atlassian-token': 'no-check' },
   });
   const text = await r.text();
   if (!r.ok) throw new Error(`Jira ${r.status}: ${text.slice(0, 300)}`);

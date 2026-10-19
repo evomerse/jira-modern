@@ -26,6 +26,12 @@ async function jira(req, res, rest) {
     method: req.method,
     headers: {
       authorization: 'Basic ' + Buffer.from(`${email}:${token}`).toString('base64'),
+      // Atlassian applique sa protection anti-CSRF aux requêtes qui ressemblent à celles d'un navigateur
+      // (c'est le cas via le réseau d'Electron) : cet en-tête documenté la désactive pour l'API.
+      'x-atlassian-token': 'no-check',
+      // Le User-Agent par défaut d'Electron (« Mozilla/5.0 … Electron ») suffit à déclencher la protection
+      // anti-CSRF d'Atlassian ("XSRF check failed") sur les POST/PUT : on s'identifie comme une application.
+      'user-agent': 'TeamIT-CDS/1.0',
       accept: req.headers.accept || 'application/json',
       ...(body?.length ? { 'content-type': 'application/json' } : {}),
     },
